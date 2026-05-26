@@ -1,6 +1,6 @@
 # Action1 RMM MCP Server
 
-An official and fully featured Model Context Protocol (MCP) server for the **Action1 RMM REST API**. 
+An unofficial and fully featured Model Context Protocol (MCP) server for the **Action1 RMM REST API**. 
 
 This server exposes Action1's remote monitoring and management (RMM) capabilities as actionable tools for AI coding assistants and agents (such as Gemini CLI, Claude Desktop, Cursor, Cline, and custom GenAI applications). It allows AI models to inspect endpoints, deploy updates/patches, run scripts, manage groups, and trigger software deployments.
 
