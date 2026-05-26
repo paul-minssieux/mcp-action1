@@ -2,6 +2,7 @@
   "name": "mcp-action1",
   "version": "1.0.0",
   "description": "MCP server for the Action1 RMM REST API",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

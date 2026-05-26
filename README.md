@@ -14,7 +14,7 @@ This server exposes Action1's remote monitoring and management (RMM) capabilitie
 - **Task & Policy Deployments**:
   - **Patching**: Deploy Windows updates / CVE mitigations with customizable reboots.
   - **Software**: Deploy packages from the Action1 Software Repository.
-  - **Scripts**: Execute library scripts with parameter overrides and custom conditions.
+  - **Scripts**: Execute library scripts with parameter overrides.
 - **Automation & Scheduling**: List, create, update, and remove recurring automation schedules.
 - **Reporting & Activity Logs**: List and retrieve data rows for custom reports, export reports to CSV, and access audit/activity logs.
 
