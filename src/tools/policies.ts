@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { client } from "../client.js";
+import { assertSingleEndpointTarget } from "../profile.js";
 import type { Tool } from "./types.js";
 
 const OrgId = z.string().uuid().optional().describe("Organization ID (must be a valid UUID). Defaults to ACTION1_ORG_ID env var.");
@@ -11,6 +12,9 @@ function buildEndpoints(
   group_ids?: string[],
   endpoint_ids?: string[]
 ): Array<{ id: string; type: string }> {
+  // In the helpdesk profile, actions must target exactly one endpoint.
+  assertSingleEndpointTarget(group_ids, endpoint_ids);
+
   const targets: Array<{ id: string; type: string }> = [];
   for (const id of group_ids ?? []) targets.push({ id, type: "EndpointGroup" });
   for (const id of endpoint_ids ?? []) targets.push({ id, type: "Endpoint" });

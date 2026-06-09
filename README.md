@@ -199,6 +199,7 @@ The server acts as an OAuth 2.0 **resource server**:
 | `ACTION1_ORG_ID` | no | Default organization ID. |
 | `ACTION1_ALLOW_ALL_ENDPOINTS` | no | `false` by default. When `false`, deploy/run tools refuse to run without explicit `group_ids`/`endpoint_ids` (prevents accidental fleet-wide changes). |
 | `ACTION1_READONLY` | no | `true` exposes only read-only inspection tools. |
+| `ACTION1_PROFILE` | no | `full` (default) or `helpdesk`. See [Tool exposure profiles](#-tool-exposure-profiles). |
 
 ### Run with Docker
 
@@ -229,6 +230,40 @@ Terminate TLS in front of the container (reverse proxy / ingress) and point
 Add a custom connector pointing at `https://<your-host>/mcp`. Claude will follow
 the advertised metadata to authenticate against Entra ID; only users in the
 configured group will be authorized.
+
+---
+
+## 👤 Tool Exposure Profiles
+
+The server can expose a reduced tool catalog depending on who it serves, via the
+`ACTION1_PROFILE` environment variable:
+
+| Profile | Intended audience | Behaviour |
+|---------|-------------------|-----------|
+| `full` (default) | Fleet managers / administrators | All tools below are exposed. |
+| `helpdesk` | L1/L2 helpdesk operators | Single-device diagnostics and remediation only. |
+
+The `helpdesk` profile:
+
+- **Hides** fleet-scoped tools: `delete_endpoint` (agent removal), group
+  management (`add_endpoint_to_group`, `update_endpoint_group`,
+  `delete_endpoint_group`), automation management (`list/create/update/delete_automation`),
+  `list_discovery_endpoints`, `requery_installed_updates` (org-wide only),
+  report tools (`list_reports`, `get_report_data`, `export_report`,
+  `requery_report`) and `list_setting_templates`.
+- **Keeps** diagnostics (`list_endpoints`, `get_endpoint`, `list_installed_apps`,
+  `list_windows_updates`, `list_vulnerabilities`, `get_activity_logs`, policy
+  inspection, catalogs) and targeted actions (`deploy_updates`,
+  `deploy_software`, `run_script`, `requery_installed_apps`, `update_endpoint`).
+- **Enforces one device at a time**: `deploy_updates`, `deploy_software` and
+  `run_script` refuse to run unless exactly one `endpoint_id` is given
+  (`group_ids` are rejected), and `requery_installed_apps` requires an
+  `endpoint_id`. This prevents an accidental fleet-wide action regardless of
+  what the model asks for.
+
+To serve both audiences, run two instances (e.g. two containers) with different
+`ACTION1_PROFILE` values and bind each to its own Entra ID security group.
+`ACTION1_READONLY=true` can still be combined with either profile.
 
 ---
 

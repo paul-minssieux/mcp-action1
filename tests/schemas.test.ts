@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { allTools } from "../src/tools/index.js";
+import { getEnabledTools } from "../src/server.js";
 
 describe("MCP-Action1 Input Schema Validation Tests", () => {
   // Helper to retrieve a tool by its registered name
@@ -109,6 +110,103 @@ describe("MCP-Action1 Input Schema Validation Tests", () => {
           script_id: "script_1",
         })
       ).rejects.toThrow(/Refusing to target ALL endpoints/);
+    });
+  });
+
+  describe("Helpdesk profile (ACTION1_PROFILE=helpdesk)", () => {
+    const VALID_ORG = "123e4567-e89b-12d3-a456-426614174000";
+
+    beforeAll(() => {
+      process.env.ACTION1_CLIENT_ID ||= "test-client-id";
+      process.env.ACTION1_CLIENT_SECRET ||= "test-client-secret";
+    });
+
+    afterEach(() => {
+      delete process.env.ACTION1_PROFILE;
+    });
+
+    it("should expose the full catalog by default", () => {
+      delete process.env.ACTION1_PROFILE;
+      expect(getEnabledTools().length).toBe(allTools.length);
+    });
+
+    it("should hide fleet-scoped mutating tools in helpdesk profile", () => {
+      process.env.ACTION1_PROFILE = "helpdesk";
+      const names = new Set(getEnabledTools().map((t) => t.name));
+      for (const hidden of [
+        "delete_endpoint",
+        "add_endpoint_to_group",
+        "update_endpoint_group",
+        "delete_endpoint_group",
+        "create_automation",
+        "update_automation",
+        "delete_automation",
+        "list_automations",
+        "list_discovery_endpoints",
+        "requery_installed_updates",
+        "export_report",
+        "requery_report",
+        "list_setting_templates",
+      ]) {
+        expect(names.has(hidden), `${hidden} should be hidden`).toBe(false);
+      }
+      for (const visible of [
+        "get_endpoint",
+        "list_windows_updates",
+        "deploy_updates",
+        "deploy_software",
+        "run_script",
+        "requery_installed_apps",
+      ]) {
+        expect(names.has(visible), `${visible} should be visible`).toBe(true);
+      }
+    });
+
+    it("should throw on an unknown ACTION1_PROFILE value", () => {
+      process.env.ACTION1_PROFILE = "admin";
+      expect(() => getEnabledTools()).toThrow(/Unknown ACTION1_PROFILE/);
+    });
+
+    it("should refuse deploy_software targeting a group", async () => {
+      process.env.ACTION1_PROFILE = "helpdesk";
+      const deploy = getTool("deploy_software");
+      await expect(
+        deploy.handler({
+          org_id: VALID_ORG,
+          name: "test deploy",
+          packages: [{ package_id: "pkg_1" }],
+          group_ids: ["group_1"],
+        })
+      ).rejects.toThrow(/one endpoint/);
+    });
+
+    it("should refuse run_script targeting more than one endpoint", async () => {
+      process.env.ACTION1_PROFILE = "helpdesk";
+      const runScript = getTool("run_script");
+      await expect(
+        runScript.handler({
+          org_id: VALID_ORG,
+          name: "test run",
+          script_id: "script_1",
+          endpoint_ids: ["endpoint_1", "endpoint_2"],
+        })
+      ).rejects.toThrow(/one device at a time/);
+    });
+
+    it("should refuse deploy_updates with no explicit endpoint", async () => {
+      process.env.ACTION1_PROFILE = "helpdesk";
+      const deploy = getTool("deploy_updates");
+      await expect(
+        deploy.handler({ org_id: VALID_ORG, name: "test patch" })
+      ).rejects.toThrow(/exactly one endpoint_id/);
+    });
+
+    it("should refuse org-wide requery_installed_apps", async () => {
+      process.env.ACTION1_PROFILE = "helpdesk";
+      const requery = getTool("requery_installed_apps");
+      await expect(requery.handler({ org_id: VALID_ORG })).rejects.toThrow(
+        /org-wide requery is not allowed/
+      );
     });
   });
 
