@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { client } from "../client.js";
+import { isHelpdesk } from "../profile.js";
 import type { Tool } from "./types.js";
 
 const OrgId = z
@@ -133,6 +134,11 @@ export const endpointTools: Tool[] = [
       const org = client.resolveOrg(org_id);
       if (endpoint_id) {
         return client.post(`/apps/${org}/requery/${endpoint_id}`);
+      }
+      if (isHelpdesk()) {
+        throw new Error(
+          "Helpdesk profile: org-wide requery is not allowed. Specify an endpoint_id."
+        );
       }
       return client.post(`/apps/${org}/requery`);
     },

@@ -6,6 +6,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { allTools, type Tool } from "./tools/index.js";
+import { getProfile } from "./profile.js";
 import { log } from "./logger.js";
 
 /**
@@ -31,16 +32,57 @@ const MUTATING_TOOLS = new Set<string>([
   "requery_report",
 ]);
 
+/**
+ * Tools exposed under ACTION1_PROFILE=helpdesk: diagnose a single device and
+ * remediate it (patch, install software, run a script, refresh inventory).
+ * Fleet-scoped mutations are deliberately absent: agent removal, group and
+ * automation management, discovery, reports/exports and setting templates.
+ * The action tools listed here additionally enforce single-endpoint targeting
+ * (see profile.ts).
+ */
+const HELPDESK_TOOLS = new Set<string>([
+  // Context
+  "get_me",
+  "list_organizations",
+  // Device diagnostics
+  "list_endpoints",
+  "get_endpoint",
+  "list_endpoint_groups",
+  "get_endpoint_group_contents",
+  "list_installed_apps",
+  "list_windows_updates",
+  "list_vulnerabilities",
+  "get_activity_logs",
+  // Catalogs needed to pick what to deploy/run
+  "list_scripts",
+  "list_packages",
+  "list_software_repository",
+  // Deployment follow-up
+  "list_policies",
+  "get_policy",
+  "get_policy_results",
+  // Single-device actions
+  "update_endpoint",
+  "requery_installed_apps",
+  "deploy_updates",
+  "deploy_software",
+  "run_script",
+]);
+
 function isReadOnly(): boolean {
   return /^(1|true|yes)$/i.test(process.env.ACTION1_READONLY ?? "");
 }
 
 /** Returns the set of tools that should be exposed given the current configuration. */
 export function getEnabledTools(): Tool[] {
-  if (isReadOnly()) {
-    return allTools.filter((t) => !MUTATING_TOOLS.has(t.name));
+  let tools = allTools;
+  if (getProfile() === "helpdesk") {
+    tools = tools.filter((t) => HELPDESK_TOOLS.has(t.name));
   }
-  return allTools;
+  if (isReadOnly()) {
+    tools = tools.filter((t) => !MUTATING_TOOLS.has(t.name));
+  }
+  return tools;
 }
 
 /**
@@ -55,6 +97,11 @@ export function createMcpServer(): Server {
   );
 
   const tools = getEnabledTools();
+  if (getProfile() === "helpdesk") {
+    log.info(
+      "ACTION1_PROFILE=helpdesk — reduced tool catalog, actions limited to one endpoint at a time."
+    );
+  }
   if (isReadOnly()) {
     log.info("ACTION1_READONLY enabled — mutating tools are disabled.");
   }
