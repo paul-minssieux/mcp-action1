@@ -136,6 +136,102 @@ Add the following to your Claude Desktop configuration (`~/Library/Application S
 
 ---
 
+## 🐳 Remote Deployment: Container + HTTP Streamable + Entra ID
+
+In addition to the local `stdio` transport, the server can run as a long-lived
+HTTP service (MCP **Streamable HTTP** transport) inside a container, protected by
+**Microsoft Entra ID (Azure AD)** so that only members of a designated security
+group may use it. This is the recommended way to attach it to Claude as a remote
+connector.
+
+> See [`SECURITY.md`](./SECURITY.md) for the full security review and the
+> rationale behind the safety controls described here.
+
+### Transport selection
+
+| `MCP_TRANSPORT` | Behaviour |
+|-----------------|-----------|
+| `stdio` (default) | Local desktop clients (Claude Desktop, Cursor, …). No auth — relies on the host. |
+| `http` | Streamable HTTP on `PORT` (default 3000), endpoint `POST /mcp`, protected by Entra ID. |
+
+### How authentication works
+
+The server acts as an OAuth 2.0 **resource server**:
+
+1. It advertises OAuth Protected Resource Metadata at
+   `/.well-known/oauth-protected-resource/mcp`, pointing to your Entra tenant as
+   the authorization server.
+2. Unauthenticated requests receive `401` with a `WWW-Authenticate` header so the
+   MCP client knows where to obtain a token.
+3. Each request's bearer token is verified (signature via tenant JWKS, issuer,
+   audience, expiry). The caller must be a **member of
+   `ENTRA_REQUIRED_GROUP_ID`** (or hold `ENTRA_REQUIRED_APP_ROLE`), otherwise the
+   request is rejected with `403`.
+
+### Entra ID app registration (one-time)
+
+1. **Register an application** in Entra ID to represent this API. Note the
+   **Directory (tenant) ID** and **Application (client) ID**.
+2. Under **Expose an API**, set the Application ID URI (e.g.
+   `api://<client-id>`) and add a scope (e.g. `mcp.access`).
+3. Under **Token configuration**, add a **groups claim** for access tokens
+   (Security groups). This makes the `groups` claim available for enforcement.
+   - If users may belong to **>200 groups** (Entra "groups overage"), define an
+     **App Role** instead and assign it to the group, then set
+     `ENTRA_REQUIRED_APP_ROLE` to that role value.
+4. Create / identify the **security group** that should be allowed, and copy its
+   **object ID** into `ENTRA_REQUIRED_GROUP_ID`. Assign your users to it.
+
+### Configuration (environment variables)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MCP_TRANSPORT` | yes (`http`) | Set to `http` to enable the HTTP transport. |
+| `PORT` | no | HTTP port (default `3000`). |
+| `MCP_PUBLIC_URL` | yes | Public `https://` base URL of the server (used in OAuth metadata). |
+| `ENTRA_TENANT_ID` | yes | Directory (tenant) ID. |
+| `ENTRA_CLIENT_ID` | yes | Application (client) ID of the API registration (expected token audience). |
+| `ENTRA_REQUIRED_GROUP_ID` | yes | Object ID of the allowed security group. |
+| `ENTRA_AUDIENCE` | no | Comma-separated audience override (defaults to `<client-id>,api://<client-id>`). |
+| `ENTRA_REQUIRED_APP_ROLE` | no | Require an app role instead of / in addition to group membership. |
+| `ACTION1_CLIENT_ID` / `ACTION1_CLIENT_SECRET` | yes | Action1 API credentials. |
+| `ACTION1_REGION` | no | `na` (default), `eu`, `au`. |
+| `ACTION1_ORG_ID` | no | Default organization ID. |
+| `ACTION1_ALLOW_ALL_ENDPOINTS` | no | `false` by default. When `false`, deploy/run tools refuse to run without explicit `group_ids`/`endpoint_ids` (prevents accidental fleet-wide changes). |
+| `ACTION1_READONLY` | no | `true` exposes only read-only inspection tools. |
+
+### Run with Docker
+
+```bash
+# Build
+docker build -t mcp-action1 .
+
+# Run (inject secrets from your environment / secret manager)
+docker run --rm -p 3000:3000 \
+  -e MCP_TRANSPORT=http \
+  -e MCP_PUBLIC_URL=https://mcp-action1.example.com \
+  -e ACTION1_CLIENT_ID=... -e ACTION1_CLIENT_SECRET=... -e ACTION1_REGION=eu \
+  -e ENTRA_TENANT_ID=... -e ENTRA_CLIENT_ID=... -e ENTRA_REQUIRED_GROUP_ID=... \
+  mcp-action1
+```
+
+Or with Compose (reads values from a `.env` file):
+
+```bash
+docker compose up --build
+```
+
+Terminate TLS in front of the container (reverse proxy / ingress) and point
+`MCP_PUBLIC_URL` at the public HTTPS URL. Probe health at `GET /healthz`.
+
+### Attach to Claude
+
+Add a custom connector pointing at `https://<your-host>/mcp`. Claude will follow
+the advertised metadata to authenticate against Entra ID; only users in the
+configured group will be authorized.
+
+---
+
 ## 🛠️ Tool Catalog
 
 This MCP server registers the following tools under standard schemas:
