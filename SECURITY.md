@@ -46,6 +46,7 @@ code. Specifically:
 | 1 | **High** | **No authentication/authorization on the server itself.** Over stdio, anyone who can reach the process can drive the Action1 API with the stored credentials. There was no notion of "who" is calling. | **Fixed** — Entra ID OAuth + group enforcement added for the HTTP transport. |
 | 2 | **High** | **Accidental fleet-wide blast radius.** `buildEndpoints()` silently defaulted to **ALL** endpoints when no target was supplied. An LLM omitting `endpoint_ids`/`group_ids` would deploy software / run scripts / patch *every* machine. | **Fixed** — now refuses unless `ACTION1_ALLOW_ALL_ENDPOINTS=true`. |
 | 3 | Medium | No way to expose the server in a reduced, read-only capacity. | **Fixed** — `ACTION1_READONLY=true` disables all mutating tools. |
+| 3b | Medium | No intermediate profile between "full admin" and "read-only": helpdesk operators who need to remediate a single device had to be given the full catalog, including fleet-wide and destructive tools. | **Fixed** — `ACTION1_PROFILE=helpdesk` exposes a reduced catalog and enforces single-endpoint targeting server-side. |
 | 4 | Low | Retry backoff multiplied the server-provided `Retry-After` value (`retryAfterDelay * 2`), so the server waits longer than requested. Functional, slightly suboptimal. | Noted, left as-is (low impact). |
 | 5 | Info | Error messages from the Action1 API are passed through to the client. They may contain organisational detail; acceptable for an internal tool. | Accepted. |
 
@@ -71,6 +72,12 @@ depends on:
   be a member of `ENTRA_REQUIRED_GROUP_ID` (or hold `ENTRA_REQUIRED_APP_ROLE`).
 - **Fleet-wide targeting guard** (`ACTION1_ALLOW_ALL_ENDPOINTS`, default off).
 - **Read-only mode** (`ACTION1_READONLY`).
+- **Helpdesk exposure profile** (`ACTION1_PROFILE=helpdesk`): hides agent
+  removal, group/automation management, discovery, reports and org-wide
+  requeries, and makes `deploy_updates` / `deploy_software` / `run_script`
+  refuse any target other than exactly one `endpoint_id` (group targeting
+  rejected). The check lives in the tool handlers, so a prompt-injected or
+  confused LLM cannot bypass it. Unknown profile values fail closed at startup.
 - **Hardened container**: multi-stage build, production-only dependencies,
   non-root `node` user, healthcheck, secrets via environment.
 
@@ -81,6 +88,10 @@ depends on:
 - Store `ACTION1_CLIENT_SECRET` and Entra values in a secret manager.
 - Start with `ACTION1_READONLY=true` to validate the integration, then enable
   mutating tools deliberately.
+- Run one instance per audience: an `ACTION1_PROFILE=helpdesk` instance bound to
+  the helpdesk operators' Entra ID group, and a `full` instance reserved for
+  fleet managers. Keep `delete_endpoint` usage in the Action1 console rather
+  than through AI tooling.
 - Use a least-privilege Action1 API credential scoped to the intended
   organisation(s).
 - Monitor `get_activity_logs` / Action1 audit logs and review the container's

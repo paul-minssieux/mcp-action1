@@ -17,6 +17,7 @@ This server exposes Action1's remote monitoring and management (RMM) capabilitie
   - **Scripts**: Execute library scripts with parameter overrides.
 - **Automation & Scheduling**: List, create, update, and remove recurring automation schedules.
 - **Reporting & Activity Logs**: List and retrieve data rows for custom reports, export reports to CSV, and access audit/activity logs.
+- **Safety Controls & Profiles**: Fleet-wide targeting guard (`ACTION1_ALLOW_ALL_ENDPOINTS`), read-only mode (`ACTION1_READONLY`), and a `helpdesk` exposure profile (`ACTION1_PROFILE`) that restricts operators to single-device diagnostics and remediation.
 
 ---
 
@@ -46,6 +47,7 @@ This server exposes Action1's remote monitoring and management (RMM) capabilitie
    ACTION1_CLIENT_SECRET=your_client_secret_here
    ACTION1_REGION=na # na (default), eu, or au
    ACTION1_ORG_ID=your_default_organization_id # optional — can be passed per-tool call
+   ACTION1_PROFILE=full # full (default) or helpdesk — see "Tool Exposure Profiles"
    ```
 
 3. **Build the Server**:
