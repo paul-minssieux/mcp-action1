@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { allTools } from "../src/tools/index.js";
 
 describe("MCP-Action1 Input Schema Validation Tests", () => {
@@ -74,6 +74,41 @@ describe("MCP-Action1 Input Schema Validation Tests", () => {
         script_id: "script_id; rm -rf /",
       });
       expect(injectionResult.success).toBe(false);
+    });
+  });
+
+  describe("Fleet-wide targeting safety guard", () => {
+    const VALID_ORG = "123e4567-e89b-12d3-a456-426614174000";
+
+    // The Action1 client requires credentials to instantiate; provide dummies.
+    // No network call is made — the safety guard throws before any request.
+    beforeAll(() => {
+      process.env.ACTION1_CLIENT_ID ||= "test-client-id";
+      process.env.ACTION1_CLIENT_SECRET ||= "test-client-secret";
+    });
+
+    it("should refuse deploy_software with no explicit target when ACTION1_ALLOW_ALL_ENDPOINTS is unset", async () => {
+      delete process.env.ACTION1_ALLOW_ALL_ENDPOINTS;
+      const deploy = getTool("deploy_software");
+      await expect(
+        deploy.handler({
+          org_id: VALID_ORG,
+          name: "test deploy",
+          packages: [{ package_id: "pkg_1" }],
+        })
+      ).rejects.toThrow(/Refusing to target ALL endpoints/);
+    });
+
+    it("should refuse run_script with no explicit target when ACTION1_ALLOW_ALL_ENDPOINTS is unset", async () => {
+      delete process.env.ACTION1_ALLOW_ALL_ENDPOINTS;
+      const runScript = getTool("run_script");
+      await expect(
+        runScript.handler({
+          org_id: VALID_ORG,
+          name: "test run",
+          script_id: "script_1",
+        })
+      ).rejects.toThrow(/Refusing to target ALL endpoints/);
     });
   });
 

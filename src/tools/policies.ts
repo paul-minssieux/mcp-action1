@@ -14,8 +14,20 @@ function buildEndpoints(
   const targets: Array<{ id: string; type: string }> = [];
   for (const id of group_ids ?? []) targets.push({ id, type: "EndpointGroup" });
   for (const id of endpoint_ids ?? []) targets.push({ id, type: "Endpoint" });
-  // Fall back to all endpoints if nothing specified
-  if (targets.length === 0) targets.push({ id: "ALL", type: "EndpointGroup" });
+
+  // Safety guard: a deployment/script with no explicit target would otherwise run
+  // against EVERY managed endpoint. To avoid an LLM accidentally triggering a
+  // fleet-wide change, require explicit targeting unless the operator has
+  // opted in via ACTION1_ALLOW_ALL_ENDPOINTS.
+  if (targets.length === 0) {
+    if (!/^(1|true|yes)$/i.test(process.env.ACTION1_ALLOW_ALL_ENDPOINTS ?? "")) {
+      throw new Error(
+        "Refusing to target ALL endpoints: specify group_ids or endpoint_ids. " +
+          "To allow fleet-wide targeting, set ACTION1_ALLOW_ALL_ENDPOINTS=true."
+      );
+    }
+    targets.push({ id: "ALL", type: "EndpointGroup" });
+  }
   return targets;
 }
 

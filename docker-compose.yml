@@ -1,0 +1,36 @@
+services:
+  mcp-action1:
+    build: .
+    image: mcp-action1:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # --- Transport ---
+      MCP_TRANSPORT: http
+      PORT: 3000
+      # Public, externally reachable base URL (used in OAuth metadata). Required.
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:?set MCP_PUBLIC_URL, e.g. https://mcp-action1.clauger.com}
+
+      # --- Action1 API credentials ---
+      ACTION1_CLIENT_ID: ${ACTION1_CLIENT_ID:?set ACTION1_CLIENT_ID}
+      ACTION1_CLIENT_SECRET: ${ACTION1_CLIENT_SECRET:?set ACTION1_CLIENT_SECRET}
+      ACTION1_REGION: ${ACTION1_REGION:-na}
+      ACTION1_ORG_ID: ${ACTION1_ORG_ID:-}
+      # Safety: leave unset to forbid fleet-wide deployments without explicit targets.
+      ACTION1_ALLOW_ALL_ENDPOINTS: ${ACTION1_ALLOW_ALL_ENDPOINTS:-false}
+      # Optional: expose only read-only inspection tools.
+      ACTION1_READONLY: ${ACTION1_READONLY:-false}
+
+      # --- Entra ID (Azure AD) authentication ---
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:?set ENTRA_TENANT_ID}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:?set ENTRA_CLIENT_ID}
+      ENTRA_REQUIRED_GROUP_ID: ${ENTRA_REQUIRED_GROUP_ID:?set ENTRA_REQUIRED_GROUP_ID}
+      ENTRA_AUDIENCE: ${ENTRA_AUDIENCE:-}
+      ENTRA_REQUIRED_APP_ROLE: ${ENTRA_REQUIRED_APP_ROLE:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
